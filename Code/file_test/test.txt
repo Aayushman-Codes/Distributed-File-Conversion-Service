@@ -1,0 +1,3 @@
+{'name': 'Alice', 'age': 22, 'grade': 'A'}
+{'name': 'Bob', 'age': 23, 'grade': 'B'}
+{'name': 'Charlie', 'age': 21, 'grade': 'A+'}
