@@ -15,7 +15,8 @@ import socket
 import hashlib
 
 # ── Network ──────────────────────────────────────────────────────────────────
-HOST            = "0.0.0.0"
+SERVER_BIND = "0.0.0.0"
+HOST            = "localhost"
 PORT            = 9000
 BUFFER_SIZE     = 65536          # 64 KB chunks for binary transfer
 HEADER_LEN_FMT  = "!I"           # network-order unsigned 32-bit int

@@ -42,7 +42,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from protocol import (
-    HOST, PORT, BUFFER_SIZE,
+    HOST, PORT, SERVER_BIND, BUFFER_SIZE,
     MsgType, JobState,
     send_message, recv_message, md5_of_bytes,
     SUPPORTED_CONVERSIONS,
@@ -291,7 +291,7 @@ def run_server(host: str = HOST, port: int = PORT,
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser(description="DFS Server")
-    ap.add_argument("--host",    default=HOST,  help="Bind address")
+    ap.add_argument("--host",    default=SERVER_BIND,  help="Bind address")
     ap.add_argument("--port",    default=PORT,  type=int)
     ap.add_argument("--workers", default=4,     type=int)
     args = ap.parse_args()
