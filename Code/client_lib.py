@@ -69,10 +69,10 @@ class DFSClient:
     # ── Connection ────────────────────────────────────────────────────────────
 
     def connect(self):
-        """Establish SSL/TCP connection to the server."""
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ctx.load_verify_locations(str(CERT_FILE))
         ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+        ctx.check_hostname = False
 
         raw = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         raw.connect((self.host, self.port))
