@@ -1,14 +1,3 @@
-"""
-protocol.py — Shared protocol constants, message framing, and data structures
-for the Distributed File Conversion Service.
-
-Wire format for every message:
-  [4 bytes: header length (big-endian uint32)]
-  [N bytes: JSON header]
-  [4 bytes: payload length (big-endian uint32)]
-  [M bytes: raw binary payload  (may be 0 bytes)]
-"""
-
 import json
 import struct
 import socket
