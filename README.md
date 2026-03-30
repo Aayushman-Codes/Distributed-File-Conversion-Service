@@ -10,7 +10,7 @@ A secure, multi-client distributed file conversion service built with **raw TCP 
 ┌─────────────────────────────────────────────────────────────┐
 │                        CLIENT SIDE                          │
 │                                                             │
-│   client.py (CLI)  ──►  client_lib.py (DFSClient)          │
+│   client.py (CLI)  ──►  client_lib.py (DFSClient)           │
 │   tests/stress_test.py                                      │
 │   tests/benchmark.py                                        │
 └────────────────────────┬────────────────────────────────────┘
