@@ -848,12 +848,14 @@ function renderJobs(jobs) {
     const dlLink = j.state === 'DONE'
       ? `<a class="dl-link" href="${API}/api/download/${j.job_id}">⬇ download</a>`
       : '—';
-    const conv = j.src_format && j.dst_fmt
-      ? `${j.src_format.toUpperCase()} → ${j.dst_fmt.toUpperCase()}`
-      : (j.src_format ? `${j.src_format.toUpperCase()} → ${(j.dst_format||'?').toUpperCase()}` : '—');
+    // Normalize: status dict uses src_format/dst_format; session uses dst_fmt
+    const src = (j.src_format || '').toUpperCase();
+    const dst = (j.dst_format || j.dst_fmt || '').toUpperCase();
+    const conv = src && dst ? `${src} → ${dst}` : (src || dst || '—');
+    const fname = j.filename || j.original_name || '—';
     return `<tr>
       <td class="job-id-cell" title="${j.job_id}">${j.job_id.slice(0,16)}…</td>
-      <td class="job-file-cell">${j.filename || j.original_name || '—'}</td>
+      <td class="job-file-cell">${fname}</td>
       <td class="job-conv-cell">${conv}</td>
       <td><span class="badge badge-${state}">${(j.state||'UNKNOWN').toUpperCase()}</span></td>
       <td>${dlLink}</td>

@@ -23,6 +23,7 @@ import os
 import sys
 import json
 import uuid
+import socket
 import logging
 import tempfile
 import mimetypes
@@ -192,7 +193,7 @@ class DFSWebHandler(BaseHTTPRequestHandler):
             tmp.write(file_data)
             tmp.close()
             with DFSClient(DFS_HOST, DFS_PORT) as c:
-                job_id = c.upload(tmp.name, dst_format)
+                job_id = c.upload(tmp.name, dst_format, original_name=filename)
             with _sessions_lock:
                 _sessions[session_id].append({
                     "job_id":   job_id,
@@ -227,6 +228,8 @@ class DFSWebHandler(BaseHTTPRequestHandler):
                 out_path = c.download(job_id, tmp_dir)
             with open(out_path, "rb") as f:
                 data = f.read()
+            # Use the filename the server computed (original stem + dst ext),
+            # not the UUID-based storage name.
             filename = Path(out_path).name
             mime = mimetypes.guess_type(filename)[0] or "application/octet-stream"
             self.send_response(200)
@@ -252,7 +255,7 @@ class DFSWebHandler(BaseHTTPRequestHandler):
             return
         with _sessions_lock:
             jobs = list(_sessions.get(session_id, []))
-        # Enrich with current status
+        # Enrich with current status and normalize field names
         enriched = []
         for j in jobs:
             try:
@@ -261,6 +264,15 @@ class DFSWebHandler(BaseHTTPRequestHandler):
                 j.update(status)
             except Exception:
                 j["state"] = "UNKNOWN"
+            # Normalize: always expose src_format and dst_format
+            # (session stores dst_fmt; status dict stores dst_format + src_format)
+            if "dst_format" not in j and "dst_fmt" in j:
+                j["dst_format"] = j["dst_fmt"]
+            if "dst_fmt" not in j and "dst_format" in j:
+                j["dst_fmt"] = j["dst_format"]
+            # filename vs original_name
+            if "filename" not in j and "original_name" in j:
+                j["filename"] = j["original_name"]
             enriched.append(j)
         self._send_json(enriched)
 
@@ -326,6 +338,12 @@ def run_web_server(host: str = "0.0.0.0", port: int = WEB_PORT):
     os.makedirs(BASE_DIR / "frontend", exist_ok=True)
     server = HTTPServer((host, port), DFSWebHandler)
     logger.info("DFS Web Server running at http://localhost:%d", port)
+    # Also show the LAN IP so other devices know what to open
+    try:
+        lan_ip = socket.gethostbyname(socket.gethostname())
+        logger.info("Other devices on the network: http://%s:%d", lan_ip, port)
+    except Exception:
+        pass
     logger.info("Make sure DFS server is also running:  python server.py")
     try:
         server.serve_forever()

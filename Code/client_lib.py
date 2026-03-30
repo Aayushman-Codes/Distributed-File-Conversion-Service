@@ -98,21 +98,25 @@ class DFSClient:
         assert hdr["type"] == MsgType.PONG
         return (time.perf_counter() - t0) * 1000
 
-    def upload(self, file_path: str, dst_format: str) -> str:
+    def upload(self, file_path: str, dst_format: str,
+               original_name: str = "") -> str:
         """
         Upload *file_path* to the server requesting conversion to *dst_format*.
+        *original_name* overrides the filename sent to the server (useful when
+        the file is a temp path but the real name is known).
         Returns the job_id string.
         """
         path     = Path(file_path)
         src_fmt  = path.suffix.lstrip(".").lower()
         data     = path.read_bytes()
         checksum = md5_of_bytes(data)
+        fname    = original_name if original_name else path.name
 
         # Phase 1: request
         send_message(self._sock, MsgType.UPLOAD_REQUEST, {
             "src_format": src_fmt,
             "dst_format": dst_format.lower(),
-            "filename":   path.name,
+            "filename":   fname,
             "file_size":  len(data),
             "md5":        checksum,
         })

@@ -35,6 +35,7 @@ import time
 import socket
 import logging
 import hashlib
+import tempfile
 import threading
 from pathlib import Path
 
@@ -60,7 +61,7 @@ logger = logging.getLogger("server")
 BASE_DIR   = Path(__file__).parent
 CERT_FILE  = BASE_DIR / "certs" / "server.crt"
 KEY_FILE   = BASE_DIR / "certs" / "server.key"
-STORAGE    = "/tmp/dfs_storage"
+STORAGE    = os.path.join(tempfile.gettempdir(), "dfs_storage")
 
 
 # ── SSL context ───────────────────────────────────────────────────────────────

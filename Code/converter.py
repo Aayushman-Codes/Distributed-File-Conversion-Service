@@ -166,109 +166,185 @@ def _convert_document(in_path, out_path, src_fmt, dst_fmt):
 
 
 def _pdf_to_txt(in_path, out_path):
+    """Extract all text from a PDF and write to a UTF-8 text file."""
     import pypdf
     reader = pypdf.PdfReader(in_path)
-    text = "\n\n".join(
-        page.extract_text() or "" for page in reader.pages
-    )
+    pages_text = []
+    for page in reader.pages:
+        text = page.extract_text(extraction_mode="layout") or ""
+        pages_text.append(text.strip())
     with open(out_path, "w", encoding="utf-8") as f:
-        f.write(text)
+        f.write("\n\n".join(t for t in pages_text if t))
 
 
 def _pdf_to_docx(in_path, out_path):
-    """Extract PDF text and place it into a DOCX document."""
+    """Extract PDF text page-by-page and write into a DOCX document."""
     import pypdf
     from docx import Document as DocxDocument
+    from docx.shared import Pt
     reader = pypdf.PdfReader(in_path)
     doc = DocxDocument()
     doc.add_heading("Converted from PDF", level=1)
     for i, page in enumerate(reader.pages):
-        text = page.extract_text() or ""
+        text = (page.extract_text(extraction_mode="layout") or "").strip()
         doc.add_heading(f"Page {i + 1}", level=2)
-        for line in text.splitlines():
-            if line.strip():
-                doc.add_paragraph(line)
+        if text:
+            for line in text.splitlines():
+                stripped = line.strip()
+                if stripped:
+                    p = doc.add_paragraph(stripped)
+                    p.style.font.size = Pt(11)
+        else:
+            doc.add_paragraph("(no extractable text on this page)")
     doc.save(out_path)
 
 
 def _docx_to_txt(in_path, out_path):
+    """Extract all text from a DOCX (paragraphs + tables) into a text file."""
     from docx import Document as DocxDocument
     doc = DocxDocument(in_path)
-    lines = [para.text for para in doc.paragraphs]
+    lines = []
+    for para in doc.paragraphs:
+        lines.append(para.text)
+    for table in doc.tables:
+        for row in table.rows:
+            row_cells = [cell.text.strip() for cell in row.cells]
+            lines.append("\t".join(row_cells))
     with open(out_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
 
 
 def _docx_to_pdf(in_path, out_path):
-    """Convert DOCX to PDF using reportlab (pure Python, no LibreOffice needed)."""
+    """Convert DOCX → PDF using reportlab, preserving headings, body text, tables and images."""
+    import io
+    import xml.sax.saxutils as saxutils
     from docx import Document as DocxDocument
-    try:
-        from reportlab.lib.pagesizes import A4
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-        from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.lib.units import cm
-        doc = DocxDocument(in_path)
-        pdf = SimpleDocTemplate(out_path, pagesize=A4,
-                                rightMargin=2*cm, leftMargin=2*cm,
-                                topMargin=2*cm, bottomMargin=2*cm)
-        styles = getSampleStyleSheet()
-        story = []
-        for para in doc.paragraphs:
-            if para.text.strip():
-                style = styles["Heading1"] if para.style.name.startswith("Heading") \
-                        else styles["Normal"]
-                story.append(Paragraph(para.text, style))
-                story.append(Spacer(1, 6))
-        pdf.build(story)
-    except ImportError:
-        # Fallback: save plain text as PDF using fpdf2
-        try:
-            from fpdf import FPDF
-            text_lines = [p.text for p in DocxDocument(in_path).paragraphs]
-            pdf_obj = FPDF()
-            pdf_obj.add_page()
-            pdf_obj.set_font("Helvetica", size=12)
-            for line in text_lines:
-                pdf_obj.multi_cell(0, 8, line or " ")
-            pdf_obj.output(out_path)
-        except ImportError:
-            # Last resort: write text content into a minimal PDF manually
-            _docx_to_txt(in_path, out_path.replace(".pdf", "_tmp.txt"))
-            with open(out_path.replace(".pdf", "_tmp.txt"), "r",
-                      encoding="utf-8") as f:
-                text = f.read()
-            _write_minimal_pdf(out_path, text)
-
-
-def _write_minimal_pdf(out_path, text):
-    """Write a very basic valid PDF containing plain text."""
-    lines = text.splitlines()[:200]          # cap at 200 lines
-    escaped = []
-    for ln in lines:
-        ln = ln.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-        escaped.append(ln)
-
-    stream_lines = ["BT", "/F1 12 Tf", "50 750 Td", "14 TL"]
-    for ln in escaped:
-        stream_lines.append(f"({ln}) Tj T*")
-    stream_lines.append("ET")
-    stream = "\n".join(stream_lines)
-
-    pdf = (
-        "%PDF-1.4\n"
-        "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
-        "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
-        "3 0 obj\n<< /Type /Page /Parent 2 0 R "
-        "/MediaBox [0 0 595 842] /Contents 4 0 R /Resources "
-        "<< /Font << /F1 5 0 R >> >> >>\nendobj\n"
-        f"4 0 obj\n<< /Length {len(stream)} >>\nstream\n{stream}\nendstream\nendobj\n"
-        "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
-        "xref\n0 6\n"
-        "trailer\n<< /Size 6 /Root 1 0 R >>\n"
-        "startxref\n0\n%%EOF\n"
+    from docx.oxml.ns import qn
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import cm
+    from reportlab.lib import colors
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
     )
-    with open(out_path, "w", encoding="latin-1") as f:
-        f.write(pdf)
+
+    PAGE_W = A4[0] - 4 * cm   # usable width (left+right margin = 2cm each)
+
+    def safe(t):
+        return saxutils.escape(t.replace("\x00", ""))
+
+    doc = DocxDocument(in_path)
+    styles = getSampleStyleSheet()
+
+    heading_styles = {}
+    for level in range(1, 10):
+        rl_name = f"Heading{level}"
+        heading_styles[level] = styles.get(rl_name, styles["Heading1"])
+
+    # Build a map: rId → image bytes  (covers inline and anchored images)
+    image_map: dict[str, bytes] = {}
+    for rel in doc.part.rels.values():
+        if "image" in rel.reltype:
+            try:
+                image_map[rel.rId] = rel.target_part.blob
+            except Exception:
+                pass
+
+    def _para_images(para):
+        """Return list of (rId, width_emu) for every inline/anchored image in a paragraph."""
+        found = []
+        # Inline drawings: w:drawing > wp:inline > a:graphic > ... > a:blip r:embed
+        for drawing in para._element.iter(qn("w:drawing")):
+            # try inline first
+            for blip in drawing.iter(qn("a:blip")):
+                rId = blip.get(qn("r:embed")) or blip.get(qn("r:link"))
+                if rId and rId in image_map:
+                    # get width from wp:extent cx attribute (EMUs)
+                    width_emu = 0
+                    for extent in drawing.iter(qn("wp:extent")):
+                        try:
+                            width_emu = int(extent.get("cx", 0))
+                        except (ValueError, TypeError):
+                            pass
+                    found.append((rId, width_emu))
+        return found
+
+    pdf_doc = SimpleDocTemplate(
+        out_path, pagesize=A4,
+        rightMargin=2*cm, leftMargin=2*cm,
+        topMargin=2*cm, bottomMargin=2*cm,
+    )
+
+    story = []
+
+    for para in doc.paragraphs:
+        # ── Images embedded in this paragraph ────────────────────────────────
+        for rId, width_emu in _para_images(para):
+            img_bytes = image_map[rId]
+            try:
+                # Convert EMU to points (1 inch = 914400 EMU = 72 pt)
+                if width_emu > 0:
+                    w_pt = width_emu / 914400 * 72
+                    w_pt = min(w_pt, PAGE_W)   # never wider than the page
+                else:
+                    w_pt = PAGE_W              # default: full width
+                rl_img = RLImage(io.BytesIO(img_bytes), width=w_pt)
+                rl_img.hAlign = "LEFT"
+                story.append(rl_img)
+                story.append(Spacer(1, 6))
+            except Exception as exc:
+                logger.warning("Skipping image %s: %s", rId, exc)
+
+        # ── Text ──────────────────────────────────────────────────────────────
+        text = para.text
+        style_name = para.style.name or ""
+
+        if not text.strip():
+            story.append(Spacer(1, 4))
+            continue
+
+        if style_name.startswith("Heading"):
+            parts = style_name.split()
+            try:
+                level = int(parts[-1])
+            except (ValueError, IndexError):
+                level = 1
+            rl_style = heading_styles.get(level, styles["Heading1"])
+        else:
+            rl_style = styles["Normal"]
+
+        story.append(Paragraph(safe(text), rl_style))
+        story.append(Spacer(1, 4))
+
+    # ── Tables ────────────────────────────────────────────────────────────────
+    for table in doc.tables:
+        table_data = []
+        for row in table.rows:
+            table_data.append([safe(cell.text) for cell in row.cells])
+
+        if not table_data:
+            continue
+
+        rl_table = Table(table_data, repeatRows=1)
+        rl_table.setStyle(TableStyle([
+            ("BACKGROUND",   (0, 0), (-1, 0),  colors.HexColor("#4f6ef7")),
+            ("TEXTCOLOR",    (0, 0), (-1, 0),  colors.white),
+            ("FONTNAME",     (0, 0), (-1, 0),  "Helvetica-Bold"),
+            ("FONTSIZE",     (0, 0), (-1, -1), 9),
+            ("ROWBACKGROUNDS",(0, 1),(-1, -1), [colors.white, colors.HexColor("#f0f0f8")]),
+            ("GRID",         (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
+            ("VALIGN",       (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING",  (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.append(Spacer(1, 8))
+        story.append(rl_table)
+        story.append(Spacer(1, 8))
+
+    if not story:
+        story.append(Paragraph("(empty document)", styles["Normal"]))
+
+    pdf_doc.build(story)
 
 
 # ── Utility ───────────────────────────────────────────────────────────────────
