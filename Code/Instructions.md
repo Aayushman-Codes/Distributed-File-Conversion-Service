@@ -57,12 +57,14 @@ python3 web_server.py
 
 Expected output:
 ```
-HH:MM:SS  INFO  DFS Web Server running at http://localhost:8080
-HH:MM:SS  INFO  Other devices on the network: http://192.168.x.x:8080
+HH:MM:SS  INFO  ============================================================
+HH:MM:SS  INFO  DFS Web Server running
+HH:MM:SS  INFO    Local:   http://localhost:8080
+HH:MM:SS  INFO    Network: http://192.168.x.x:8080
+HH:MM:SS  INFO  ============================================================
 ```
 
-The second line shows the URL other devices on the same network should open.
-Open your browser at the URL shown in the output.
+Open the Network URL in any browser on the same WiFi to access from other devices.
 
 ---
 
@@ -160,14 +162,56 @@ DOCX → PDF preserves headings, body text, tables, and embedded images.
 
 ## Connect from Another Device (Multi-Device Setup)
 
-### Browser (recommended — no setup needed)
-1. Start server.py and web_server.py on the host machine
-2. Note the IP printed by web_server.py:
-   `Other devices on the network: http://192.168.x.x:8080`
-3. Open that URL in any browser on any device on the same network
-4. Everything works — no certificate needed for browser access
+### Browser (recommended — no setup needed on the other device)
+
+The browser UI runs entirely on the server machine. Other devices just open a URL.
+
+**Step 1 — On the SERVER machine, open the firewall ports (one time only):**
+
+Run this script as Administrator (opens ports 8080 and 9000):
+```
+python open_firewall.py
+```
+
+Or manually in PowerShell (run as Administrator):
+```
+netsh advfirewall firewall add rule name="DFS-Web-8080" protocol=TCP dir=in localport=8080 action=allow
+netsh advfirewall firewall add rule name="DFS-TCP-9000" protocol=TCP dir=in localport=9000 action=allow
+```
+
+Linux / Mac:
+```
+sudo ufw allow 8080/tcp
+sudo ufw allow 9000/tcp
+sudo ufw reload
+```
+
+**Step 2 — Start both servers on the server machine:**
+```
+python server.py        # Terminal 1
+python web_server.py    # Terminal 2
+```
+
+web_server.py will print the URL to share:
+```
+HH:MM:SS  INFO  Network: http://192.168.x.x:8080
+```
+
+**Step 3 — On the other device, open that URL in any browser.**
+
+No certificate, no project files, no Python needed on the other device.
+The browser talks to web_server.py over plain HTTP — web_server.py handles
+the SSL/TCP connection to server.py internally.
+
+> If you still get a connection error after opening the firewall, check:
+> - Both server.py and web_server.py are running on the server machine
+> - Both devices are on the same WiFi network
+> - The IP in the URL matches what `ipconfig` (Windows) or `ip a` (Linux) shows
+
+---
 
 ### CLI from another device
+
 The CLI client connects directly over SSL/TCP and needs the certificate.
 
 **Step 1 — Find the server IP:**

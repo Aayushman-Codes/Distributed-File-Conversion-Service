@@ -337,14 +337,26 @@ def _parse_multipart(body: bytes, boundary: bytes) -> dict:
 def run_web_server(host: str = "0.0.0.0", port: int = WEB_PORT):
     os.makedirs(BASE_DIR / "frontend", exist_ok=True)
     server = HTTPServer((host, port), DFSWebHandler)
-    logger.info("DFS Web Server running at http://localhost:%d", port)
-    # Also show the LAN IP so other devices know what to open
+
+    # Resolve LAN IP for display
     try:
         lan_ip = socket.gethostbyname(socket.gethostname())
-        logger.info("Other devices on the network: http://%s:%d", lan_ip, port)
     except Exception:
-        pass
+        lan_ip = "<your-ip>"
+
+    logger.info("=" * 60)
+    logger.info("DFS Web Server running")
+    logger.info("  Local:   http://localhost:%d", port)
+    logger.info("  Network: http://%s:%d", lan_ip, port)
+    logger.info("=" * 60)
+    logger.info("If other devices get a connection error, open port %d", port)
+    logger.info("  Windows (run PowerShell as Admin):")
+    logger.info("    netsh advfirewall firewall add rule name=\"DFS Web\" "
+                "protocol=TCP dir=in localport=%d action=allow", port)
+    logger.info("  Linux:  sudo ufw allow %d/tcp", port)
+    logger.info("=" * 60)
     logger.info("Make sure DFS server is also running:  python server.py")
+
     try:
         server.serve_forever()
     except KeyboardInterrupt:
