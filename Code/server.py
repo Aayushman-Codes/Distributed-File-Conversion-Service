@@ -203,8 +203,11 @@ class ClientHandler:
             send_message(self.sock, MsgType.ERROR,
                          {"reason": f"Job {job_id} not found"})
             return
-        # Only the owning client may poll
-        if job.client_id != self.client_id:
+        # Allow same-host clients (web_server on 127.0.0.1) to poll any job
+        # they submitted from localhost. Different port = different client_id
+        # but same IP means it is the web bridge, not a different user.
+        same_ip = self.addr[0] == job.client_id.split(":")[0]
+        if job.client_id != self.client_id and not same_ip:
             send_message(self.sock, MsgType.ERROR,
                          {"reason": "Access denied"})
             return
@@ -220,7 +223,8 @@ class ClientHandler:
             send_message(self.sock, MsgType.ERROR,
                          {"reason": f"Job {job_id} not found"})
             return
-        if job.client_id != self.client_id:
+        same_ip = self.addr[0] == job.client_id.split(":")[0]
+        if job.client_id != self.client_id and not same_ip:
             send_message(self.sock, MsgType.ERROR,
                          {"reason": "Access denied"})
             return

@@ -1,19 +1,24 @@
+"""
+protocol.py — Shared protocol constants, message framing, and data structures
+for the Distributed File Conversion Service.
+"""
+
 import json
 import struct
 import socket
 import hashlib
 
 # ── Network ──────────────────────────────────────────────────────────────────
-SERVER_BIND = "0.0.0.0"
-HOST            = "localhost"
+HOST            = "localhost"    # client default — same machine
+SERVER_BIND     = "0.0.0.0"     # server listens on all interfaces
 PORT            = 9000
-BUFFER_SIZE     = 65536          # 64 KB chunks for binary transfer
-HEADER_LEN_FMT  = "!I"           # network-order unsigned 32-bit int
+WEB_PORT        = 8080           # HTTP frontend port
+BUFFER_SIZE     = 65536
+HEADER_LEN_FMT  = "!I"
 HEADER_LEN_SIZE = struct.calcsize(HEADER_LEN_FMT)
 
 # ── Supported conversion formats ─────────────────────────────────────────────
 SUPPORTED_CONVERSIONS = {
-    # Images
     "jpg":  ["png", "bmp", "gif", "webp", "tiff"],
     "jpeg": ["png", "bmp", "gif", "webp", "tiff"],
     "png":  ["jpg", "bmp", "gif", "webp", "tiff"],
@@ -21,45 +26,38 @@ SUPPORTED_CONVERSIONS = {
     "gif":  ["png", "jpg", "bmp"],
     "webp": ["png", "jpg", "bmp"],
     "tiff": ["png", "jpg", "bmp"],
-    # Text
-    "txt":  ["csv", "json"],
-    "csv":  ["txt", "json"],
-    "json": ["txt", "csv"],
+    "txt":  ["csv", "json", "xml"],
+    "csv":  ["txt", "json", "xml"],
+    "json": ["txt", "csv", "xml"],
+    "xml":  ["txt", "csv", "json"],
+    "pdf":  ["txt", "docx"],
+    "docx": ["txt", "pdf"],
 }
 
-# ── Message types ─────────────────────────────────────────────────────────────
 class MsgType:
-    UPLOAD_REQUEST   = "UPLOAD_REQUEST"    # client → server: want to convert
-    UPLOAD_DATA      = "UPLOAD_DATA"       # client → server: binary file chunk
-    JOB_ACCEPTED     = "JOB_ACCEPTED"      # server → client: job_id assigned
-    JOB_STATUS       = "JOB_STATUS"        # bidirectional: poll / push status
-    DOWNLOAD_REQUEST = "DOWNLOAD_REQUEST"  # client → server: fetch result
-    DOWNLOAD_DATA    = "DOWNLOAD_DATA"     # server → client: binary file chunk
-    ERROR            = "ERROR"             # either direction: error report
-    LIST_JOBS        = "LIST_JOBS"         # client → server: list my jobs
-    JOB_LIST         = "JOB_LIST"          # server → client: job list response
+    UPLOAD_REQUEST   = "UPLOAD_REQUEST"
+    UPLOAD_DATA      = "UPLOAD_DATA"
+    JOB_ACCEPTED     = "JOB_ACCEPTED"
+    JOB_STATUS       = "JOB_STATUS"
+    DOWNLOAD_REQUEST = "DOWNLOAD_REQUEST"
+    DOWNLOAD_DATA    = "DOWNLOAD_DATA"
+    ERROR            = "ERROR"
+    LIST_JOBS        = "LIST_JOBS"
+    JOB_LIST         = "JOB_LIST"
     PING             = "PING"
     PONG             = "PONG"
 
-# ── Job states ────────────────────────────────────────────────────────────────
 class JobState:
     QUEUED     = "QUEUED"
     PROCESSING = "PROCESSING"
     DONE       = "DONE"
     FAILED     = "FAILED"
 
-
-# ── Low-level framing helpers ─────────────────────────────────────────────────
-
-def send_message(sock: socket.socket, msg_type: str,
-                 header_extra: dict = None, payload: bytes = b"") -> None:
-    """Frame and send one message over *sock* (which may be an SSL socket)."""
+def send_message(sock, msg_type, header_extra=None, payload=b""):
     header = {"type": msg_type}
     if header_extra:
         header.update(header_extra)
-
     header_bytes = json.dumps(header).encode("utf-8")
-    # Pack: [header-len][header-bytes][payload-len][payload-bytes]
     frame = (
         struct.pack(HEADER_LEN_FMT, len(header_bytes))
         + header_bytes
@@ -68,9 +66,7 @@ def send_message(sock: socket.socket, msg_type: str,
     )
     sock.sendall(frame)
 
-
-def recv_exact(sock: socket.socket, n: int) -> bytes:
-    """Read exactly *n* bytes from *sock*, raising on EOF."""
+def recv_exact(sock, n):
     buf = bytearray()
     while len(buf) < n:
         chunk = sock.recv(min(n - len(buf), BUFFER_SIZE))
@@ -79,23 +75,14 @@ def recv_exact(sock: socket.socket, n: int) -> bytes:
         buf.extend(chunk)
     return bytes(buf)
 
-
-def recv_message(sock: socket.socket) -> tuple[dict, bytes]:
-    """Receive one framed message; returns (header_dict, payload_bytes)."""
-    # Read header length
+def recv_message(sock):
     raw_hlen = recv_exact(sock, HEADER_LEN_SIZE)
     hlen = struct.unpack(HEADER_LEN_FMT, raw_hlen)[0]
-
-    # Read header JSON
     header = json.loads(recv_exact(sock, hlen).decode("utf-8"))
-
-    # Read payload length + payload
     raw_plen = recv_exact(sock, HEADER_LEN_SIZE)
     plen = struct.unpack(HEADER_LEN_FMT, raw_plen)[0]
     payload = recv_exact(sock, plen) if plen else b""
-
     return header, payload
 
-
-def md5_of_bytes(data: bytes) -> str:
+def md5_of_bytes(data):
     return hashlib.md5(data).hexdigest()

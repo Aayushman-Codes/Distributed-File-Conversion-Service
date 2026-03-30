@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DFS — Distributed File Conversion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0a0a0f;
+    --surface:   #13131a;
+    --surface2:  #1c1c28;
+    --border:    #2a2a3d;
+    --accent:    #4f6ef7;
+    --accent2:   #7c3aed;
+    --success:   #10b981;
+    --warning:   #f59e0b;
+    --error:     #ef4444;
+    --text:      #e2e8f0;
+    --muted:     #64748b;
+    --mono:      'Space Mono', monospace;
+    --sans:      'DM Sans', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid bg */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 32px 0 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+  }
+
+  .header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+
+  .logo-text h1 {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    line-height: 1;
+  }
+
+  .logo-text span {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  #server-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+
+  #server-status:hover { border-color: var(--accent); }
+
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: background 0.3s;
+  }
+
+  .status-dot.online  { background: var(--success); box-shadow: 0 0 6px var(--success); }
+  .status-dot.offline { background: var(--error); }
+
+  /* ── Main layout ── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 40px;
+  }
+
+  @media (max-width: 680px) {
+    .main-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ── Card ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    transition: border-color 0.2s;
+  }
+
+  .card:hover { border-color: rgba(79,110,247,0.4); }
+
+  .card-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-title::before {
+    content: '';
+    width: 3px; height: 14px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+
+  /* ── Drop zone ── */
+  #drop-zone {
+    grid-column: 1 / -1;
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+  }
+
+  #drop-zone::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(79,110,247,0.05), rgba(124,58,237,0.05));
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+
+  #drop-zone:hover, #drop-zone.dragover {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(79,110,247,0.1);
+  }
+
+  #drop-zone:hover::after, #drop-zone.dragover::after { opacity: 1; }
+
+  .drop-icon { font-size: 42px; margin-bottom: 12px; line-height: 1; }
+
+  .drop-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .drop-sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 20px;
+  }
+
+  .file-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .file-btn:hover { background: #3d5de4; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(79,110,247,0.4); }
+
+  #selected-file {
+    margin-top: 16px;
+    padding: 10px 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+  }
+
+  #selected-file.show { display: flex; }
+
+  .file-name { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-size { color: var(--muted); white-space: nowrap; }
+
+  /* ── Format picker ── */
+  .format-section .card-title { margin-bottom: 14px; }
+
+  #format-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    gap: 8px;
+    margin-bottom: 16px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .fmt-chip {
+    padding: 8px 4px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+  }
+
+  .fmt-chip:hover { border-color: var(--accent); color: var(--text); }
+  .fmt-chip.selected { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(79,110,247,0.4); }
+  .fmt-chip.disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+
+  #no-format-msg {
+    font-size: 13px;
+    color: var(--muted);
+    padding: 20px;
+    text-align: center;
+    display: none;
+  }
+
+  /* ── Convert button ── */
+  #convert-btn {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #convert-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(79,110,247,0.5);
+  }
+
+  #convert-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  #convert-btn .btn-text { position: relative; z-index: 1; }
+
+  /* ── Progress ── */
+  #progress-section { display: none; }
+
+  #progress-section.show { display: block; }
+
+  .progress-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .progress-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .progress-title {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .progress-state {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .state-queued     { background: rgba(245,158,11,0.15); color: var(--warning); border: 1px solid rgba(245,158,11,0.3); }
+  .state-processing { background: rgba(79,110,247,0.15); color: var(--accent);  border: 1px solid rgba(79,110,247,0.3); }
+  .state-done       { background: rgba(16,185,129,0.15); color: var(--success); border: 1px solid rgba(16,185,129,0.3); }
+  .state-failed     { background: rgba(239,68,68,0.15);  color: var(--error);   border: 1px solid rgba(239,68,68,0.3); }
+
+  .progress-bar-wrap {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+
+  .progress-bar {
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    width: 0%;
+    transition: width 0.5s ease;
+  }
+
+  .progress-bar.pulse {
+    animation: pulse-bar 1.5s ease-in-out infinite;
+    width: 60%;
+  }
+
+  @keyframes pulse-bar {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  .progress-id {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #download-btn {
+    display: none;
+    width: 100%;
+    margin-top: 14px;
+    padding: 12px;
+    background: var(--success);
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  #download-btn:hover { background: #0fa172; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16,185,129,0.4); }
+  #download-btn.show { display: block; }
+
+  /* ── Jobs table ── */
+  .jobs-section { margin-bottom: 40px; }
+
+  #jobs-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  #jobs-table th {
+    text-align: left;
+    padding: 8px 12px;
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+
+  #jobs-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(42,42,61,0.5);
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+
+  #jobs-table tr:hover td { background: var(--surface2); }
+
+  .job-id-cell { color: var(--muted); max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+  .job-file-cell { color: var(--text); }
+  .job-conv-cell { color: var(--accent); }
+
+  .badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .badge-done       { background: rgba(16,185,129,0.15);  color: var(--success); }
+  .badge-queued     { background: rgba(245,158,11,0.15);  color: var(--warning); }
+  .badge-processing { background: rgba(79,110,247,0.15);  color: var(--accent);  }
+  .badge-failed     { background: rgba(239,68,68,0.15);   color: var(--error);   }
+  .badge-unknown    { background: rgba(100,116,139,0.15); color: var(--muted);   }
+
+  .dl-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 11px;
+    transition: color 0.2s;
+  }
+
+  .dl-link:hover { color: #7c9bff; }
+
+  #no-jobs {
+    text-align: center;
+    padding: 32px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px;
+    font-size: 13px;
+    font-family: var(--mono);
+    max-width: 320px;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 1000;
+    pointer-events: none;
+  }
+
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.success { border-color: var(--success); color: var(--success); }
+  #toast.error   { border-color: var(--error);   color: var(--error);   }
+
+  /* ── Footer ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 20px 0;
+    margin-top: 20px;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+  }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  input[type=file] { display: none; }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">⚡</div>
+        <div class="logo-text">
+          <h1>DFS</h1>
+          <span>Distributed File Conversion</span>
+        </div>
+      </div>
+      <div id="server-status" onclick="checkPing()">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-text">checking...</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Drop zone -->
+  <div class="main-grid">
+    <div id="drop-zone"
+         ondrop="handleDrop(event)"
+         ondragover="handleDragOver(event)"
+         ondragleave="handleDragLeave(event)"
+         onclick="document.getElementById('file-input').click()">
+      <div class="drop-icon">📂</div>
+      <div class="drop-title">Drop your file here</div>
+      <div class="drop-sub">Images, Documents, Text, Data files supported</div>
+      <button class="file-btn" onclick="event.stopPropagation(); document.getElementById('file-input').click()">
+        Browse Files
+      </button>
+      <div id="selected-file">
+        <span>📄</span>
+        <span class="file-name" id="fname"></span>
+        <span class="file-size" id="fsize"></span>
+      </div>
+    </div>
+    <input type="file" id="file-input" onchange="handleFileSelect(this.files[0])"/>
+
+    <!-- Format picker -->
+    <div class="card format-section">
+      <div class="card-title">Target Format</div>
+      <div id="format-grid"></div>
+      <div id="no-format-msg">Select a file first to see available formats</div>
+      <button id="convert-btn" disabled onclick="startConversion()">
+        <span class="btn-text">CONVERT FILE</span>
+      </button>
+    </div>
+
+    <!-- Supported formats reference -->
+    <div class="card">
+      <div class="card-title">Supported Formats</div>
+      <div id="format-ref" style="font-size:12px; line-height:1.9; color:var(--muted); font-family:var(--mono);"></div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div id="progress-section">
+    <div class="progress-card">
+      <div class="progress-header">
+        <span class="progress-title">Conversion Job</span>
+        <span class="progress-state" id="progress-state-badge">—</span>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+      <div class="progress-id" id="progress-id"></div>
+      <button id="download-btn" onclick="downloadFile()">⬇ DOWNLOAD RESULT</button>
+    </div>
+  </div>
+
+  <!-- Jobs history -->
+  <div class="jobs-section card">
+    <div class="card-title" style="justify-content:space-between; display:flex; align-items:center;">
+      <span style="display:flex;align-items:center;gap:8px;"><span style="width:3px;height:14px;background:var(--accent);border-radius:2px;display:inline-block;"></span>JOB HISTORY</span>
+      <button onclick="loadJobs()" style="background:none;border:1px solid var(--border);color:var(--muted);font-family:var(--mono);font-size:10px;padding:4px 10px;border-radius:6px;cursor:pointer;letter-spacing:1px;">REFRESH</button>
+    </div>
+    <div id="jobs-container">
+      <div id="no-jobs">No jobs yet. Upload a file to get started.</div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <div class="container">
+    DFS · Socket Programming Project · TCP + TLS · Python
+  </div>
+</footer>
+
+<div id="toast"></div>
+
+<script>
+const API = '';  // same origin — web_server.py serves both HTML and API
+
+let selectedFile = null;
+let selectedFormat = null;
+let currentJobId = null;
+let pollTimer = null;
+let formatsMap = {};
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+window.addEventListener('DOMContentLoaded', async () => {
+  await loadFormats();
+  await checkPing();
+  await loadJobs();
+});
+
+// ── Ping / status ─────────────────────────────────────────────────────────────
+
+async function checkPing() {
+  const dot  = document.getElementById('status-dot');
+  const text = document.getElementById('status-text');
+  dot.className = 'status-dot';
+  text.textContent = 'checking...';
+  try {
+    const r = await fetch(`${API}/api/ping`);
+    const d = await r.json();
+    if (r.ok) {
+      dot.className = 'status-dot online';
+      text.textContent = `online · ${d.rtt_ms}ms`;
+    } else throw new Error();
+  } catch {
+    dot.className = 'status-dot offline';
+    text.textContent = 'server offline';
+  }
+}
+
+// ── Formats ───────────────────────────────────────────────────────────────────
+
+async function loadFormats() {
+  try {
+    const r = await fetch(`${API}/api/formats`);
+    formatsMap = await r.json();
+    renderFormatRef();
+  } catch { }
+}
+
+function renderFormatRef() {
+  const el = document.getElementById('format-ref');
+  const lines = Object.entries(formatsMap).map(([src, tgts]) =>
+    `<span style="color:var(--text)">${src.toUpperCase()}</span> → ${tgts.map(t => t.toUpperCase()).join(', ')}`
+  );
+  el.innerHTML = lines.join('<br>');
+}
+
+function renderFormatChips(srcFmt) {
+  const grid = document.getElementById('format-grid');
+  const msg  = document.getElementById('no-format-msg');
+  grid.innerHTML = '';
+  selectedFormat = null;
+
+  const targets = formatsMap[srcFmt] || [];
+  if (!targets.length) {
+    msg.style.display = 'block';
+    grid.style.display = 'none';
+    return;
+  }
+  msg.style.display = 'none';
+  grid.style.display = 'grid';
+
+  targets.forEach(fmt => {
+    const chip = document.createElement('div');
+    chip.className = 'fmt-chip';
+    chip.textContent = fmt.toUpperCase();
+    chip.onclick = () => {
+      document.querySelectorAll('.fmt-chip').forEach(c => c.classList.remove('selected'));
+      chip.classList.add('selected');
+      selectedFormat = fmt;
+      updateConvertBtn();
+    };
+    grid.appendChild(chip);
+  });
+}
+
+// ── File handling ─────────────────────────────────────────────────────────────
+
+function handleFileSelect(file) {
+  if (!file) return;
+  selectedFile = file;
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  document.getElementById('fname').textContent = file.name;
+  document.getElementById('fsize').textContent = formatBytes(file.size);
+  document.getElementById('selected-file').classList.add('show');
+
+  renderFormatChips(ext);
+  updateConvertBtn();
+  toast(`File selected: ${file.name}`, 'success');
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFileSelect(file);
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.add('dragover');
+}
+
+function handleDragLeave() {
+  document.getElementById('drop-zone').classList.remove('dragover');
+}
+
+function updateConvertBtn() {
+  document.getElementById('convert-btn').disabled = !(selectedFile && selectedFormat);
+}
+
+// ── Conversion ────────────────────────────────────────────────────────────────
+
+async function startConversion() {
+  if (!selectedFile || !selectedFormat) return;
+
+  const btn = document.getElementById('convert-btn');
+  btn.disabled = true;
+  btn.querySelector('.btn-text').textContent = 'UPLOADING...';
+
+  const form = new FormData();
+  form.append('file', selectedFile, selectedFile.name);
+  form.append('format', selectedFormat);
+
+  try {
+    const r = await fetch(`${API}/api/convert`, { method: 'POST', body: form });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Upload failed');
+
+    currentJobId = d.job_id;
+    showProgress(currentJobId);
+    pollJob(currentJobId);
+    toast('Job submitted!', 'success');
+    loadJobs();
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.querySelector('.btn-text').textContent = 'CONVERT FILE';
+    updateConvertBtn();
+  }
+}
+
+// ── Progress ──────────────────────────────────────────────────────────────────
+
+function showProgress(jobId) {
+  const sec = document.getElementById('progress-section');
+  sec.classList.add('show');
+  document.getElementById('progress-id').textContent = `job: ${jobId}`;
+  document.getElementById('download-btn').classList.remove('show');
+  setProgressState('QUEUED');
+}
+
+function setProgressState(state) {
+  const badge = document.getElementById('progress-state-badge');
+  const bar   = document.getElementById('progress-bar');
+  badge.textContent = state;
+  badge.className = `progress-state state-${state.toLowerCase()}`;
+
+  if (state === 'QUEUED') {
+    bar.style.width = '20%';
+    bar.classList.remove('pulse');
+  } else if (state === 'PROCESSING') {
+    bar.classList.add('pulse');
+  } else if (state === 'DONE') {
+    bar.classList.remove('pulse');
+    bar.style.width = '100%';
+    document.getElementById('download-btn').classList.add('show');
+  } else if (state === 'FAILED') {
+    bar.classList.remove('pulse');
+    bar.style.width = '100%';
+    bar.style.background = 'var(--error)';
+  }
+}
+
+function pollJob(jobId) {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    try {
+      const r = await fetch(`${API}/api/status/${jobId}`);
+      const d = await r.json();
+      if (!r.ok) { clearInterval(pollTimer); return; }
+      setProgressState(d.state);
+      if (d.state === 'DONE' || d.state === 'FAILED') {
+        clearInterval(pollTimer);
+        loadJobs();
+        if (d.state === 'DONE') toast('Conversion complete! Ready to download.', 'success');
+        else toast(`Job failed: ${d.error_msg || 'Unknown error'}`, 'error');
+      }
+    } catch { clearInterval(pollTimer); }
+  }, 800);
+}
+
+async function downloadFile() {
+  if (!currentJobId) return;
+  window.location.href = `${API}/api/download/${currentJobId}`;
+}
+
+// ── Jobs history ──────────────────────────────────────────────────────────────
+
+async function loadJobs() {
+  try {
+    const r = await fetch(`${API}/api/jobs`);
+    const jobs = await r.json();
+    renderJobs(jobs);
+  } catch { }
+}
+
+function renderJobs(jobs) {
+  const container = document.getElementById('jobs-container');
+  if (!jobs.length) {
+    container.innerHTML = '<div id="no-jobs">No jobs yet. Upload a file to get started.</div>';
+    return;
+  }
+  const rows = jobs.slice().reverse().map(j => {
+    const state = (j.state || 'UNKNOWN').toLowerCase();
+    const dlLink = j.state === 'DONE'
+      ? `<a class="dl-link" href="${API}/api/download/${j.job_id}">⬇ download</a>`
+      : '—';
+    const conv = j.src_format && j.dst_fmt
+      ? `${j.src_format.toUpperCase()} → ${j.dst_fmt.toUpperCase()}`
+      : (j.src_format ? `${j.src_format.toUpperCase()} → ${(j.dst_format||'?').toUpperCase()}` : '—');
+    return `<tr>
+      <td class="job-id-cell" title="${j.job_id}">${j.job_id.slice(0,16)}…</td>
+      <td class="job-file-cell">${j.filename || j.original_name || '—'}</td>
+      <td class="job-conv-cell">${conv}</td>
+      <td><span class="badge badge-${state}">${(j.state||'UNKNOWN').toUpperCase()}</span></td>
+      <td>${dlLink}</td>
+    </tr>`;
+  }).join('');
+  container.innerHTML = `
+    <table id="jobs-table">
+      <thead>
+        <tr>
+          <th>Job ID</th><th>File</th><th>Conversion</th><th>Status</th><th>Download</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1048576) return `${(bytes/1024).toFixed(1)} KB`;
+  return `${(bytes/1048576).toFixed(1)} MB`;
+}
+
+let toastTimer;
+function toast(msg, type='') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, 3500);
+}
+</script>
+</body>
+</html>

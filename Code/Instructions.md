@@ -1,260 +1,265 @@
-# Distributed File Conversion Service (DFS)
-### Socket Programming Mini Project — Quick Command Reference
+# DFS — Quick Command Reference
 
+pip install Pillow pypdf python-docx reportlab
 ---
 
-## Project Setup (One Time Only)
+## Every Terminal — Always Do This First
 
-### Activate virtual environment
-> Run this in EVERY terminal before using the project
+**Windows:**
 ```
 .\venv\Scripts\Activate.ps1
 ```
 
-### Start the server
-> Keep this terminal open and running at all times
+**Linux / Mac:**
 ```
-python server.py
-```
-Expected output:
-```
-HH:MM:SS  INFO  MainThread  Scheduler started with 4 workers
-HH:MM:SS  INFO  MainThread  DFS Server listening on localhost:9000  (TLS, 4 workers)
+source venv/bin/activate
 ```
 
 ---
 
-## Client Commands
-> Open a second terminal, activate venv, then use these commands
+## Start the Backend Server (Terminal 1)
 
-### Check server is alive
+**Windows:**
 ```
-python client.py ping
+python server.py
 ```
+
+**Linux / Mac:**
+```
+python3 server.py
+```
+
 Expected output:
 ```
-INFO  Connected to localhost:9000  (cipher: ('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256))
-PONG from localhost:9000  RTT=x.xx ms
+HH:MM:SS  INFO  MainThread  Scheduler started with 4 workers
+HH:MM:SS  INFO  MainThread  DFS Server listening on 0.0.0.0:9000  (TLS, 4 workers)
+```
+Leave this terminal open.
+
+---
+
+## Start the Web Frontend (Terminal 2)
+
+**Windows:**
+```
+python web_server.py
 ```
 
-### Convert a file (upload + wait + download in one shot)
+**Linux / Mac:**
 ```
-python client.py convert <path-to-file> --to <format> --out results
+python3 web_server.py
 ```
 
-### Upload a file (get a job ID)
+Then open your browser at: **http://localhost:8080**
+
+---
+
+## CLI Client Commands (Terminal 2 alternative)
+
+### Ping
 ```
-python client.py upload <path-to-file> --to <format>
+# Windows
+python client.py ping
+
+# Linux
+python3 client.py ping
+```
+
+### Convert a file (one shot — upload + wait + download)
+```
+# Windows
+python client.py convert C:\path\to\file.png --to jpg --out results
+
+# Linux
+python3 client.py convert /home/user/file.png --to jpg --out results
+```
+
+### Upload only (get job ID)
+```
+python client.py upload file.png --to jpg
+python3 client.py upload file.png --to jpg
 ```
 
 ### Check job status
 ```
 python client.py status <job_id>
+python3 client.py status <job_id>
 ```
 
-### Download converted file
+### Download result
 ```
 python client.py download <job_id> --out results
+python3 client.py download <job_id> --out results
 ```
 
-### List all your jobs
+### List all jobs
 ```
 python client.py jobs
+python3 client.py jobs
 ```
 
 ---
 
 ## Image Conversions
 
-### PNG to JPG
-```
-python client.py convert C:\Users\aayus\Desktop\CN_Jackfruit\file_test\logo.png --to jpg --out results
-```
+| Command | What it does |
+|---------|--------------|
+| `--to jpg` | Convert to JPEG (lossy, smaller file) |
+| `--to png` | Convert to PNG (lossless) |
+| `--to bmp` | Convert to BMP (lossless, large file) |
+| `--to webp` | Convert to WebP (modern, efficient) |
+| `--to gif` | Convert to GIF |
+| `--to tiff` | Convert to TIFF |
 
-### PNG to BMP (lossless, no quality loss)
-```
-python client.py convert C:\Users\aayus\Desktop\CN_Jackfruit\file_test\logo.png --to bmp --out results
-```
+---
 
-### PNG to WEBP
-```
-python client.py convert C:\Users\aayus\Desktop\CN_Jackfruit\file_test\logo.png --to webp --out results
-```
+## Text / Data Conversions
 
-### PNG to GIF
-```
-python client.py convert C:\Users\aayus\Desktop\CN_Jackfruit\file_test\logo.png --to gif --out results
-```
+| Command | What it does |
+|---------|--------------|
+| `--to csv` | Convert to CSV |
+| `--to json` | Convert to JSON |
+| `--to txt` | Convert to plain text |
+| `--to xml` | Convert to XML |
 
-### PNG to TIFF
-```
-python client.py convert C:\Users\aayus\Desktop\CN_Jackfruit\file_test\logo.png --to tiff --out results
-```
+---
 
-### JPG to PNG
+## Document Conversions
+
+| Command | What it does |
+|---------|--------------|
+| `pdf --to txt` | Extract text from PDF |
+| `pdf --to docx` | Convert PDF to Word document |
+| `docx --to txt` | Extract text from Word document |
+| `docx --to pdf` | Convert Word document to PDF |
+
+---
+
+## Connect from Another Device (Multi-System)
+
+First find the server machine's IP:
+- **Windows:** `ipconfig` → IPv4 Address under Wi-Fi
+- **Linux:** `ip a` or `hostname -I`
+
+On the other device (must have project files + server.crt in certs/):
 ```
-python client.py convert <path-to-file.jpg> --to png --out results
+# Windows
+python client.py --host <server-ip> ping
+python client.py --host <server-ip> convert file.png --to jpg --out results
+
+# Linux
+python3 client.py --host <server-ip> ping
+python3 client.py --host <server-ip> convert file.png --to jpg --out results
 ```
 
 ---
 
-## Text Conversions
+## Tests
 
-### JSON to CSV
-```
-python client.py convert C:\Users\aayus\Desktop\CN_Jackfruit\file_test\test.json --to csv --out results
-```
+Server must be running before any test.
 
-### JSON to TXT
+### Functional Tests
 ```
-python client.py convert C:\Users\aayus\Desktop\CN_Jackfruit\file_test\test.json --to txt --out results
-```
-
-### CSV to JSON
-```
-python client.py convert results\test.csv --to json --out results
-```
-
-### CSV to TXT
-```
-python client.py convert results\test.csv --to txt --out results
-```
-
-### TXT to JSON
-```
-python client.py convert results\test.txt --to json --out results
-```
-
-### TXT to CSV
-```
-python client.py convert results\test.txt --to csv --out results
-```
-
----
-
-## Supported Formats
-
-| Input | Supported Output Formats |
-|-------|--------------------------|
-| PNG | jpg, bmp, gif, webp, tiff |
-| JPG / JPEG | png, bmp, gif, webp, tiff |
-| BMP | png, jpg, gif, webp |
-| GIF | png, jpg, bmp |
-| WEBP | png, jpg, bmp |
-| TIFF | png, jpg, bmp |
-| JSON | csv, txt |
-| CSV | json, txt |
-| TXT | csv, json |
-
----
-
-## Running the Tests
-> Make sure the server is running in another terminal before running any test
-
-### 1. Functional Test Suite
-Tests all conversions, error handling, and job workflow automatically
-```
+# Windows
 python tests/test_dfs.py
-```
-Expected output:
-```
-Ran 14 tests in ~8s
-OK
-```
 
-### 2. Performance Benchmark
-Measures latency, throughput, and scalability
+# Linux
+python3 tests/test_dfs.py
 ```
+Expected: `Ran 14 tests ... OK`
+
+### Performance Benchmark
+```
+# Windows
 python tests/benchmark.py
-```
-Custom concurrent client counts:
-```
 python tests/benchmark.py --concurrent 1 4 8 16
+
+# Linux
+python3 tests/benchmark.py
+python3 tests/benchmark.py --concurrent 1 4 8 16
 ```
 
-### 3. Stress Test (Concurrent Clients)
-Fires N clients simultaneously and reports results
+### Stress Test
 ```
+# Windows
 python tests/stress_test.py --clients 8 --size 50
-```
-For heavier load:
-```
 python tests/stress_test.py --clients 16 --size 100
-```
-Expected output:
-```
-Results: 8/8 succeeded, 0 failed
-  avg=0.XXs  min=0.XXs  max=0.XXs
+
+# Linux
+python3 tests/stress_test.py --clients 8 --size 50
+python3 tests/stress_test.py --clients 16 --size 100
 ```
 
 ---
 
 ## Deliverable 1 Verification
 
-### Requirement 1 — Multiple clients with one server
+### Multiple Clients — Option A (manual)
+Open 3 extra terminals, activate venv in each, run convert in all at same time.
+Watch server terminal — you will see 3 simultaneous client connections logged.
 
-**Option A: Manual demo**
-1. Keep server running in terminal 1
-2. Open 3 more terminals and activate venv in each
-3. Run this in all 3 at the same time:
-```
-python client.py convert C:\Users\aayus\Desktop\CN_Jackfruit\file_test\logo.png --to jpg --out results
-```
-4. Watch the server terminal — you will see all 3 clients connected simultaneously:
-```
-INFO  client-XXXX1  Client connected: 127.0.0.1:XXXX1
-INFO  client-XXXX2  Client connected: 127.0.0.1:XXXX2
-INFO  client-XXXX3  Client connected: 127.0.0.1:XXXX3
-```
-
-**Option B: Automated stress test (recommended)**
+### Multiple Clients — Option B (automated, recommended)
 ```
 python tests/stress_test.py --clients 8 --size 50
+python3 tests/stress_test.py --clients 8 --size 50
 ```
-Shows 8 clients all working simultaneously with a clean results summary.
+
+### SSL Proof — Show cipher
+```
+python client.py ping
+```
+Output shows: `cipher: ('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256)`
+
+### SSL Proof — Show certificate
+```
+# Windows Git Bash or Linux terminal
+openssl x509 -in certs/server.crt -text -noout
+```
+
+### SSL Proof — Prove client refuses without cert
+```
+# Git Bash / Linux
+mv certs/server.crt certs/server.crt.bak
+python client.py ping         # will fail with cert error
+mv certs/server.crt.bak certs/server.crt
+```
 
 ---
 
-### Requirement 2 — SSL Implementation
+## Generating SSL Certificates
 
-**Show the cipher on every connection:**
+### Windows (run in Git Bash as one single line)
 ```
-python client.py ping
+openssl req -x509 -newkey rsa:4096 -keyout certs/server.key -out certs/server.crt -days 365 -nodes -subj "/CN=localhost"
 ```
-Point out this line in the output:
-```
-cipher: ('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256)
-```
-This proves TLS 1.3 with 256-bit encryption is active on every connection.
 
-**Show the certificate details:**
-> Run this in Git Bash
+If openssl is not found, add it to PATH first (in PowerShell):
 ```
-openssl x509 -in certs/server.crt -text -noout
+$env:PATH += ";C:\Program Files\Git\usr\bin"
 ```
-Shows the full certificate — issuer, validity period, RSA 4096-bit key.
+Then run the openssl command above.
 
-**Prove the client won't connect without the certificate:**
-> Run in Git Bash to temporarily hide the cert
+### Linux / Mac
 ```
-cd certs
-mv server.crt server.crt.bak
+openssl req -x509 -newkey rsa:4096 \
+  -keyout certs/server.key \
+  -out certs/server.crt \
+  -days 365 -nodes \
+  -subj "/CN=localhost"
 ```
-Then in VS Code terminal:
+
+### Verify certificates were created
 ```
-python client.py ping
+ls certs/
 ```
-You will get a certificate error — proving SSL verification is enforced. Restore the cert after:
-```
-cd certs
-mv server.crt.bak server.crt
-```
+Must show both: `server.crt` and `server.key`
 
 ---
 
 ## Notes
 
-- Always start the server before running any client command
-- Always activate the venv (`.\venv\Scripts\Activate.ps1`) in every terminal
-- Converted files are saved in the `results\` folder
-- The server logs every connection and job in its terminal — keep it visible during demo
+- Always activate venv before every terminal session
+- Always start server.py before any client command or web_server.py
+- Converted files go into the `results/` folder
+- Server terminal shows every connection and job — keep it visible during demo
+- server.key must NEVER be committed to GitHub
