@@ -95,14 +95,22 @@ dfs/
 ├── converter.py       # Pillow image + stdlib text conversion
 ├── client_lib.py      # Reusable Python client library (DFSClient)
 ├── client.py          # Interactive CLI client
+├── Instructions.md    # A list of instructions to help run the project
+├── open_firewall.py   # opens port 8080 and 9090 for frontend
+├── web_server.py      # backend server for the frontend website
 ├── certs/
 │   ├── server.crt     # Self-signed TLS certificate
 │   └── server.key     # Private key
+├── results/           # contains results of Command Line Conversions
+├── file_test/         # Folder containing some test files you can use
+├──frontend/
+│   └── index.html     # front html file
 └── tests/
     ├── test_dfs.py    # Functional test suite (unittest)
     ├── benchmark.py   # Performance measurement
     └── stress_test.py # Concurrent client load test
 ```
+A copy of all tests are also present in Code directory for ease of running tests.
 
 ---
 
